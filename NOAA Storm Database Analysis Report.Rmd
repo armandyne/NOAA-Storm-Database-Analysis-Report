@@ -1,0 +1,76 @@
+---
+title: Exploring the NOAA Storm Database
+author: Arman Iskaliyev
+date: 30 January 2018
+output: html_document
+---
+
+------------------------------------------------------------------------
+
+#Consequences of severe weather events in the U.S. between 1950 and 2011
+
+------------------------------------------------------------------------
+
+###Synopsis
+___________
+In this report bla bla....
+
+
+###Data Processing
+__________________
+We obtained our [data](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2) from the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database. This database tracks characteristics of major storms and weather events in the United States which occurred in the period between 1950 and November of 2011. Information in database also including when and where they occur, as well as estimates of any fatalities, injuries, and property damage.
+
+We first download the data from web resource and unzip it. The data is comma-separated-value (CSV) file compressed via the bzip2 (size: 47 Mb).
+```{r}
+zip.file.url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+data.dir <- "./data"
+     
+if (!file.exists(data.dir)) {
+     dir.create(data.dir)
+}
+
+zip.file <- paste0(data.dir, "/", "StormData.csv.bz2")
+if (!file.exists(zip.file)) {
+     download.file(zip.file.url, zip.file)
+}
+
+csv.file <- paste0(data.dir, "/", "StormData.csv")
+if (!file.exists(csv.file)) {
+     unzip(zip.file, exdir = data.dir)
+}
+
+```
+
+Then read the csv file:
+```{r}
+library(readr)
+data <- read_csv(csv.file)
+```
+
+After reading we look at the structure of our data:
+```{r}
+library(dplyr)
+glimpse(data)
+```
+
+Since we want to explore economical and public health consequences of weather events, subset our dataset using [National Weather Service Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf). We are basically interested in these variables listed below:
+
+- *Fatalities/Injuries*. The determination of direct versus indirect causes of weather-related
+fatalities or injuries is one of the most difficult aspects of Storm Data preparation.
+
+- *Damage*. Property damage estimates should be entered as actual dollar amounts, if a
+reasonably accurate estimate from an insurance company or other qualified individual is
+available. 
+
+- *Crop Damage Data*. Crop damage information may be obtained from reliable sources,
+such as the U.S. Department of Agriculture (USDA), the county/parish agricultural extension
+agent, the state department of agriculture, crop insurance agencies, or any other reliable
+authority. 
+
+```{r}
+data <- select(data, BGN_DATE, STATE, EVTYPE, FATALITIES, INJURIES, PROPDMG, CROPDMG)
+tail(data)
+```
+
+###Results
+__________
