@@ -250,6 +250,65 @@ tail(data)</code></pre>
 ## 5  11/9/2011 0:00:00    AK       BLIZZARD          0        0       0
 ## 6 11/28/2011 0:00:00    AL     HEAVY SNOW          0        0       0
 ## # ... with 1 more variables: CROPDMG &lt;dbl&gt;</code></pre>
+<p>Do some tidying on data:</p>
+<pre class="r"><code>library(lubridate)</code></pre>
+<pre><code>## 
+## Attaching package: 'lubridate'</code></pre>
+<pre><code>## The following object is masked from 'package:base':
+## 
+##     date</code></pre>
+<pre class="r"><code>library(tidyr)
+
+data &lt;- separate(data, BGN_DATE, into = c(&quot;Date&quot;, &quot;Time&quot;), sep = &quot;\\W+&quot;) %&gt;% 
+          mutate(Date = mdy(Date)) %&gt;% 
+            select(-Time)</code></pre>
+<pre><code>## Warning: Too many values at 902297 locations: 1, 2, 3, 4, 5, 6, 7, 8, 9,
+## 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, ...</code></pre>
+<pre><code>## Warning: All formats failed to parse. No formats found.</code></pre>
+<pre class="r"><code>data$STATE &lt;- factor(data$STATE)
+data$EVTYPE &lt;- factor(data$EVTYPE)
+data</code></pre>
+<pre><code>## # A tibble: 902,297 x 7
+##      Date  STATE  EVTYPE FATALITIES INJURIES PROPDMG CROPDMG
+##    &lt;date&gt; &lt;fctr&gt;  &lt;fctr&gt;      &lt;dbl&gt;    &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;
+##  1     NA     AL TORNADO          0       15    25.0       0
+##  2     NA     AL TORNADO          0        0     2.5       0
+##  3     NA     AL TORNADO          0        2    25.0       0
+##  4     NA     AL TORNADO          0        2     2.5       0
+##  5     NA     AL TORNADO          0        2     2.5       0
+##  6     NA     AL TORNADO          0        6     2.5       0
+##  7     NA     AL TORNADO          0        1     2.5       0
+##  8     NA     AL TORNADO          0        0     2.5       0
+##  9     NA     AL TORNADO          1       14    25.0       0
+## 10     NA     AL TORNADO          0        0    25.0       0
+## # ... with 902,287 more rows</code></pre>
+<pre class="r"><code>names(data) &lt;- c(&quot;Event.Date&quot;, &quot;State&quot;, &quot;Event.Type&quot;, &quot;Fatalities&quot;, &quot;Injuries&quot;, &quot;Property.Damage&quot;, &quot;Crop.Damage&quot;)
+
+summary(data)</code></pre>
+<pre><code>##    Event.Date         State                    Event.Type    
+##  Min.   :NA       TX     : 83728   HAIL             :288661  
+##  1st Qu.:NA       KS     : 53440   TSTM WIND        :219944  
+##  Median :NA       OK     : 46802   THUNDERSTORM WIND: 82563  
+##  Mean   :NA       MO     : 35648   TORNADO          : 60652  
+##  3rd Qu.:NA       IA     : 31069   FLASH FLOOD      : 54278  
+##  Max.   :NA       NE     : 30271   FLOOD            : 25326  
+##  NA's   :902297   (Other):621339   (Other)          :170873  
+##    Fatalities          Injuries         Property.Damage  
+##  Min.   :  0.0000   Min.   :   0.0000   Min.   :   0.00  
+##  1st Qu.:  0.0000   1st Qu.:   0.0000   1st Qu.:   0.00  
+##  Median :  0.0000   Median :   0.0000   Median :   0.00  
+##  Mean   :  0.0168   Mean   :   0.1557   Mean   :  12.06  
+##  3rd Qu.:  0.0000   3rd Qu.:   0.0000   3rd Qu.:   0.50  
+##  Max.   :583.0000   Max.   :1700.0000   Max.   :5000.00  
+##                                                          
+##   Crop.Damage     
+##  Min.   :  0.000  
+##  1st Qu.:  0.000  
+##  Median :  0.000  
+##  Mean   :  1.527  
+##  3rd Qu.:  0.000  
+##  Max.   :990.000  
+## </code></pre>
 </div>
 <div id="results" class="section level3">
 <h3>Results</h3>

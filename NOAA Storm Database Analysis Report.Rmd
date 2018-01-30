@@ -2,7 +2,9 @@
 title: Exploring the NOAA Storm Database
 author: Arman Iskaliyev
 date: 30 January 2018
-output: html_document
+output: 
+  html_document:
+    keep_md: true
 ---
 
 ------------------------------------------------------------------------
@@ -70,6 +72,23 @@ authority.
 ```{r}
 data <- select(data, BGN_DATE, STATE, EVTYPE, FATALITIES, INJURIES, PROPDMG, CROPDMG)
 tail(data)
+```
+
+Do some tidying on data:
+```{r}
+library(lubridate)
+library(tidyr)
+
+data <- separate(data, BGN_DATE, into = c("Date", "Time"), sep = "\\W+") %>% 
+          mutate(Date = mdy(Date)) %>% 
+            select(-Time)
+
+data$STATE <- factor(data$STATE)
+data$EVTYPE <- factor(data$EVTYPE)
+data
+names(data) <- c("Event.Date", "State", "Event.Type", "Fatalities", "Injuries", "Property.Damage", "Crop.Damage")
+
+summary(data)
 ```
 
 ###Results
