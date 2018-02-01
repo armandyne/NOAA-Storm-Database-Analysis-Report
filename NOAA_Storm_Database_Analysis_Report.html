@@ -235,22 +235,44 @@ data &lt;- read_csv(csv.file)</code></pre>
 <p>Since we want to explore economical and public health consequences of weather events, subset our dataset using <a href="https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf">National Weather Service Storm Data Documentation</a>. We are basically interested in these variables listed below:</p>
 <ul>
 <li><p><em>Fatalities/Injuries</em>. The determination of direct versus indirect causes of weather-related fatalities or injuries is one of the most difficult aspects of Storm Data preparation.</p></li>
-<li><p><em>Damage</em>. Property damage estimates should be entered as actual dollar amounts, if a reasonably accurate estimate from an insurance company or other qualified individual is available.</p></li>
+<li><p><em>Damage</em>. Property damage estimates should be entered as actual dollar amounts, if a reasonably accurate estimate from an insurance company or other qualified individual is available. Estimates should be rounded to three significant digits, followed by an alphabetical character signifying the magnitude of the number, i.e., 1.55B for $1,550,000,000. Alphabetical characters used to signify magnitude include “K” for thousands, “M” for millions, and “B” for billions.</p></li>
 <li><p><em>Crop Damage Data</em>. Crop damage information may be obtained from reliable sources, such as the U.S. Department of Agriculture (USDA), the county/parish agricultural extension agent, the state department of agriculture, crop insurance agencies, or any other reliable authority.</p></li>
 </ul>
-<pre class="r"><code>data &lt;- select(data, BGN_DATE, STATE, EVTYPE, FATALITIES, INJURIES, PROPDMG, CROPDMG)
+<p>Look at possible damage multiplier values:</p>
+<pre class="r"><code>table(data$PROPDMGEXP)</code></pre>
+<pre><code>## 
+##      -      ?      +      0      1      2      3      4      5      6 
+##      1      8      5    216     25     13      4      4     28      4 
+##      7      8      B      h      H      K      m      M 
+##      5      1     40      1      6 424665      7  11330</code></pre>
+<pre class="r"><code>table(data$CROPDMGEXP)</code></pre>
+<pre><code>## 
+##      ?      0      2      B      k      K      m      M 
+##      7     19      1      9     21 281832      1   1994</code></pre>
+<p>Look at possible weather events:</p>
+<pre class="r"><code>Event.types &lt;- sort(unique(data$EVTYPE))
+length(Event.types)</code></pre>
+<pre><code>## [1] 977</code></pre>
+<pre class="r"><code>Event.types[c(1, 45:48, 237:239, 351:354)]</code></pre>
+<pre><code>##  [1] &quot;?&quot;                &quot;Coastal Flood&quot;    &quot;COASTAL FLOOD&quot;   
+##  [4] &quot;coastal flooding&quot; &quot;Coastal Flooding&quot; &quot;HAIL 0.75&quot;       
+##  [7] &quot;HAIL 0.88&quot;        &quot;HAIL 075&quot;         &quot;HIGH WIND&quot;       
+## [10] &quot;HIGH WIND (G40)&quot;  &quot;HIGH WIND 48&quot;     &quot;HIGH WIND 63&quot;</code></pre>
+<p>There is a lot of messy values in the <code>EVTYPE</code> variable. We should try to clean it.</p>
+<p>First We select only necessary variables:</p>
+<pre class="r"><code>data &lt;- select(data, BGN_DATE, EVTYPE, FATALITIES, INJURIES, PROPDMG, CROPDMG, PROPDMGEXP, CROPDMGEXP)
 tail(data)</code></pre>
-<pre><code>## # A tibble: 6 x 7
-##             BGN_DATE STATE         EVTYPE FATALITIES INJURIES PROPDMG
-##                &lt;chr&gt; &lt;chr&gt;          &lt;chr&gt;      &lt;dbl&gt;    &lt;dbl&gt;   &lt;dbl&gt;
-## 1 11/28/2011 0:00:00    TN WINTER WEATHER          0        0       0
-## 2 11/30/2011 0:00:00    WY      HIGH WIND          0        0       0
-## 3 11/10/2011 0:00:00    MT      HIGH WIND          0        0       0
-## 4  11/8/2011 0:00:00    AK      HIGH WIND          0        0       0
-## 5  11/9/2011 0:00:00    AK       BLIZZARD          0        0       0
-## 6 11/28/2011 0:00:00    AL     HEAVY SNOW          0        0       0
-## # ... with 1 more variables: CROPDMG &lt;dbl&gt;</code></pre>
-<p>Do some tidying on data:</p>
+<pre><code>## # A tibble: 6 x 8
+##             BGN_DATE         EVTYPE FATALITIES INJURIES PROPDMG CROPDMG
+##                &lt;chr&gt;          &lt;chr&gt;      &lt;dbl&gt;    &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;
+## 1 11/28/2011 0:00:00 WINTER WEATHER          0        0       0       0
+## 2 11/30/2011 0:00:00      HIGH WIND          0        0       0       0
+## 3 11/10/2011 0:00:00      HIGH WIND          0        0       0       0
+## 4  11/8/2011 0:00:00      HIGH WIND          0        0       0       0
+## 5  11/9/2011 0:00:00       BLIZZARD          0        0       0       0
+## 6 11/28/2011 0:00:00     HEAVY SNOW          0        0       0       0
+## # ... with 2 more variables: PROPDMGEXP &lt;chr&gt;, CROPDMGEXP &lt;chr&gt;</code></pre>
+<p>Convert the <code>PROPDMGEXP, CROPDMGEXP, EVTYPE</code> values to upper case, exclude some meaningless event types:</p>
 <pre class="r"><code>library(lubridate)</code></pre>
 <pre><code>## 
 ## Attaching package: 'lubridate'</code></pre>
@@ -259,56 +281,158 @@ tail(data)</code></pre>
 ##     date</code></pre>
 <pre class="r"><code>library(tidyr)
 
-data &lt;- separate(data, BGN_DATE, into = c(&quot;Date&quot;, &quot;Time&quot;), sep = &quot;\\W+&quot;) %&gt;% 
-          mutate(Date = mdy(Date)) %&gt;% 
-            select(-Time)</code></pre>
-<pre><code>## Warning: Too many values at 902297 locations: 1, 2, 3, 4, 5, 6, 7, 8, 9,
-## 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, ...</code></pre>
-<pre><code>## Warning: All formats failed to parse. No formats found.</code></pre>
-<pre class="r"><code>data$STATE &lt;- factor(data$STATE)
-data$EVTYPE &lt;- factor(data$EVTYPE)
-data</code></pre>
-<pre><code>## # A tibble: 902,297 x 7
-##      Date  STATE  EVTYPE FATALITIES INJURIES PROPDMG CROPDMG
-##    &lt;date&gt; &lt;fctr&gt;  &lt;fctr&gt;      &lt;dbl&gt;    &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;
-##  1     NA     AL TORNADO          0       15    25.0       0
-##  2     NA     AL TORNADO          0        0     2.5       0
-##  3     NA     AL TORNADO          0        2    25.0       0
-##  4     NA     AL TORNADO          0        2     2.5       0
-##  5     NA     AL TORNADO          0        2     2.5       0
-##  6     NA     AL TORNADO          0        6     2.5       0
-##  7     NA     AL TORNADO          0        1     2.5       0
-##  8     NA     AL TORNADO          0        0     2.5       0
-##  9     NA     AL TORNADO          1       14    25.0       0
-## 10     NA     AL TORNADO          0        0    25.0       0
-## # ... with 902,287 more rows</code></pre>
-<pre class="r"><code>names(data) &lt;- c(&quot;Event.Date&quot;, &quot;State&quot;, &quot;Event.Type&quot;, &quot;Fatalities&quot;, &quot;Injuries&quot;, &quot;Property.Damage&quot;, &quot;Crop.Damage&quot;)
+data &lt;- separate(data, BGN_DATE, into = c(&quot;Date&quot;, &quot;Time&quot;), sep = &quot;\\s+&quot;) %&gt;% 
+          mutate(Date = mdy(Date), 
+                 PROPDMGEXP = toupper(PROPDMGEXP), 
+                 CROPDMGEXP = toupper(CROPDMGEXP),
+                 EVTYPE = toupper(EVTYPE)) %&gt;% 
+            select(-Time) %&gt;% 
+              filter(!grepl(&quot;^SUMMARY|^\\?|NONE&quot; , EVTYPE))
 
-summary(data)</code></pre>
-<pre><code>##    Event.Date         State                    Event.Type    
-##  Min.   :NA       TX     : 83728   HAIL             :288661  
-##  1st Qu.:NA       KS     : 53440   TSTM WIND        :219944  
-##  Median :NA       OK     : 46802   THUNDERSTORM WIND: 82563  
-##  Mean   :NA       MO     : 35648   TORNADO          : 60652  
-##  3rd Qu.:NA       IA     : 31069   FLASH FLOOD      : 54278  
-##  Max.   :NA       NE     : 30271   FLOOD            : 25326  
-##  NA's   :902297   (Other):621339   (Other)          :170873  
-##    Fatalities          Injuries         Property.Damage  
-##  Min.   :  0.0000   Min.   :   0.0000   Min.   :   0.00  
-##  1st Qu.:  0.0000   1st Qu.:   0.0000   1st Qu.:   0.00  
-##  Median :  0.0000   Median :   0.0000   Median :   0.00  
-##  Mean   :  0.0168   Mean   :   0.1557   Mean   :  12.06  
-##  3rd Qu.:  0.0000   3rd Qu.:   0.0000   3rd Qu.:   0.50  
-##  Max.   :583.0000   Max.   :1700.0000   Max.   :5000.00  
-##                                                          
-##   Crop.Damage     
-##  Min.   :  0.000  
-##  1st Qu.:  0.000  
-##  Median :  0.000  
-##  Mean   :  1.527  
-##  3rd Qu.:  0.000  
-##  Max.   :990.000  
-## </code></pre>
+head(data)</code></pre>
+<pre><code>## # A tibble: 6 x 8
+##         Date  EVTYPE FATALITIES INJURIES PROPDMG CROPDMG PROPDMGEXP
+##       &lt;date&gt;   &lt;chr&gt;      &lt;dbl&gt;    &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;      &lt;chr&gt;
+## 1 1950-04-18 TORNADO          0       15    25.0       0          K
+## 2 1950-04-18 TORNADO          0        0     2.5       0          K
+## 3 1951-02-20 TORNADO          0        2    25.0       0          K
+## 4 1951-06-08 TORNADO          0        2     2.5       0          K
+## 5 1951-11-15 TORNADO          0        2     2.5       0          K
+## 6 1951-11-15 TORNADO          0        6     2.5       0          K
+## # ... with 1 more variables: CROPDMGEXP &lt;chr&gt;</code></pre>
+<p>Clean the <code>EVTYPE</code> values:</p>
+<pre class="r"><code>data$EVTYPE &lt;- gsub(&quot;&amp;&quot;, &quot;AND&quot;, data$EVTYPE) 
+data$EVTYPE &lt;- gsub(&quot;\\s{2,}&quot;, &quot; &quot;, data$EVTYPE) 
+data$EVTYPE &lt;- gsub(&quot;\\\\&quot;, &quot;/&quot;, data$EVTYPE) 
+data$EVTYPE &lt;- gsub(&quot;\\s+AND\\s+&quot;, &quot;/&quot;, data$EVTYPE) 
+data$EVTYPE &lt;- gsub(&quot;^VOLCANIC ASH.*&quot;, &quot;VOLCANIC ASH&quot;, data$EVTYPE) 
+data$EVTYPE &lt;- gsub(&quot;^TSTM W[I]*ND.*|^TSTM.?$|^T[H]?U[N]?[DE].*[S]?[T]?[OR]+M.*W[IN]*.*&quot;, &quot;THUNDERSTORM WINDS&quot;, data$EVTYPE) 
+data$EVTYPE &lt;- gsub(&quot;^TORN[AD]?[DA]?O.*|.+TORNADO.*&quot;, &quot;TORNADO&quot;, data$EVTYPE) 
+data$EVTYPE &lt;- gsub(&quot;^HURRICANE.*&quot;, &quot;HURRICANE&quot;, data$EVTYPE) 
+data$EVTYPE &lt;- gsub(&quot;^HIGH WIND[S]?\\s*\\d+&quot;, &quot;HIGH WIND&quot;, data$EVTYPE) 
+data$EVTYPE &lt;- gsub(&quot;WA[Y]?TER\\s?SPOUT[S]?&quot;, &quot;WATERSPOUTS&quot;, data$EVTYPE) 
+data$EVTYPE &lt;- gsub(&quot;(SML)\\s?&quot;, &quot;SMALL&quot;, data$EVTYPE)
+data$EVTYPE &lt;- gsub(&quot;UNSEASONABLY&quot;, &quot;UNSEASONABLE&quot;, data$EVTYPE)
+data$EVTYPE &lt;- gsub(&quot;COOL&quot;, &quot;COLD&quot;, data$EVTYPE)
+data$EVTYPE &lt;- gsub(&quot;THUNDERSTORMS&quot;, &quot;THUNDERSTORM&quot;, data$EVTYPE)
+data$EVTYPE &lt;- gsub(&quot;W[I]?ND[S]?&quot;, &quot;WIND&quot;, data$EVTYPE) 
+data$EVTYPE &lt;- gsub(&quot;HAIL.{1}\\d+\\W?\\d*&quot;, &quot;HAIL&quot;, data$EVTYPE) 
+data$EVTYPE &lt;- gsub(&quot;\\W+$|-\\s+&quot;, &quot;&quot;, data$EVTYPE) 
+
+length(unique(data$EVTYPE))</code></pre>
+<pre><code>## [1] 609</code></pre>
+<p>Apply damage multipliers:</p>
+<pre class="r"><code>data &lt;- mutate(data, 
+               PROPDMG = PROPDMG * if_else(PROPDMGEXP == &quot;K&quot;, 10 ^ 3,
+                                     if_else(PROPDMGEXP == &quot;H&quot;, 10 ^ 2,
+                                       if_else(PROPDMGEXP == &quot;M&quot;, 10 ^ 6, 
+                                         if_else(PROPDMGEXP == &quot;B&quot;, 10 ^ 9, 1)
+                                         , 1), 1), 1)) %&gt;% 
+          mutate(CROPDMG = CROPDMG * if_else(CROPDMGEXP == &quot;K&quot;, 10 ^ 3,
+                                       if_else(CROPDMGEXP == &quot;H&quot;, 10 ^ 2,
+                                         if_else(CROPDMGEXP == &quot;M&quot;, 10 ^ 6, 
+                                           if_else(CROPDMGEXP == &quot;B&quot;, 10 ^ 9, 1)
+                                           , 1), 1), 1)) %&gt;% 
+            select(-ends_with(&quot;EXP&quot;))
+
+data     </code></pre>
+<pre><code>## # A tibble: 902,219 x 6
+##          Date  EVTYPE FATALITIES INJURIES PROPDMG CROPDMG
+##        &lt;date&gt;   &lt;chr&gt;      &lt;dbl&gt;    &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;
+##  1 1950-04-18 TORNADO          0       15   25000       0
+##  2 1950-04-18 TORNADO          0        0    2500       0
+##  3 1951-02-20 TORNADO          0        2   25000       0
+##  4 1951-06-08 TORNADO          0        2    2500       0
+##  5 1951-11-15 TORNADO          0        2    2500       0
+##  6 1951-11-15 TORNADO          0        6    2500       0
+##  7 1951-11-16 TORNADO          0        1    2500       0
+##  8 1952-01-22 TORNADO          0        0    2500       0
+##  9 1952-02-13 TORNADO          1       14   25000       0
+## 10 1952-02-13 TORNADO          0        0   25000       0
+## # ... with 902,209 more rows</code></pre>
+<p>Set meaningful names for the variables:</p>
+<pre class="r"><code>names(data) &lt;- c(&quot;Date&quot;, &quot;Event.Type&quot;, &quot;Fatalities&quot;, &quot;Injuries&quot;, &quot;Property.Damage&quot;, &quot;Crop.Damage&quot;)</code></pre>
+<p>Check for NA values:</p>
+<pre class="r"><code>sum(is.na(data))</code></pre>
+<pre><code>## [1] 0</code></pre>
+<p>Create new dataset for public health consequences:</p>
+<pre class="r"><code>Events.Cause.Fatalities &lt;- select(data, Event.Type, Fatalities) %&gt;% 
+                             group_by(Event.Type) %&gt;% 
+                               summarise(Total.Fatalities = sum(Fatalities)) %&gt;% 
+                                 arrange(desc(Total.Fatalities))
+Events.Cause.Fatalities</code></pre>
+<pre><code>## # A tibble: 609 x 2
+##           Event.Type Total.Fatalities
+##                &lt;chr&gt;            &lt;dbl&gt;
+##  1           TORNADO             5661
+##  2    EXCESSIVE HEAT             1903
+##  3       FLASH FLOOD              978
+##  4              HEAT              937
+##  5         LIGHTNING              817
+##  6 THUNDERSTORM WIND              710
+##  7             FLOOD              470
+##  8       RIP CURRENT              368
+##  9         HIGH WIND              283
+## 10         AVALANCHE              224
+## # ... with 599 more rows</code></pre>
+<pre class="r"><code>Events.Cause.Injuries &lt;- select(data, Event.Type, Injuries) %&gt;% 
+                                group_by(Event.Type) %&gt;% 
+                                  summarise(Total.Injuries = sum(Injuries)) %&gt;% 
+                                    arrange(desc(Total.Injuries))
+Events.Cause.Injuries</code></pre>
+<pre><code>## # A tibble: 609 x 2
+##           Event.Type Total.Injuries
+##                &lt;chr&gt;          &lt;dbl&gt;
+##  1           TORNADO          91407
+##  2 THUNDERSTORM WIND           9496
+##  3             FLOOD           6789
+##  4    EXCESSIVE HEAT           6525
+##  5         LIGHTNING           5230
+##  6              HEAT           2100
+##  7         ICE STORM           1975
+##  8       FLASH FLOOD           1777
+##  9         HIGH WIND           1440
+## 10              HAIL           1361
+## # ... with 599 more rows</code></pre>
+<p>Create new dataset for economic consequences:</p>
+<pre class="r"><code>Events.Cause.Property.Damage &lt;- select(data, Event.Type, Property.Damage) %&gt;% 
+                                  group_by(Event.Type) %&gt;% 
+                                    summarise(Total.Property.Damage = sum(Property.Damage)) %&gt;% 
+                                      arrange(desc(Total.Property.Damage))
+Events.Cause.Property.Damage</code></pre>
+<pre><code>## # A tibble: 609 x 2
+##           Event.Type Total.Property.Damage
+##                &lt;chr&gt;                 &lt;dbl&gt;
+##  1             FLOOD          144657709807
+##  2         HURRICANE           84756180010
+##  3           TORNADO           58593098529
+##  4       STORM SURGE           43323536000
+##  5       FLASH FLOOD           16141362067
+##  6              HAIL           15732819543
+##  7 THUNDERSTORM WIND            9761990706
+##  8    TROPICAL STORM            7703890550
+##  9      WINTER STORM            6688497251
+## 10         HIGH WIND            5878433043
+## # ... with 599 more rows</code></pre>
+<pre class="r"><code>Events.Cause.Crop.Damage &lt;- select(data, Event.Type, Crop.Damage) %&gt;% 
+                              group_by(Event.Type) %&gt;% 
+                                summarise(Total.Crop.Damage = sum(Crop.Damage)) %&gt;% 
+                                  arrange(desc(Total.Crop.Damage))
+Events.Cause.Crop.Damage</code></pre>
+<pre><code>## # A tibble: 609 x 2
+##           Event.Type Total.Crop.Damage
+##                &lt;chr&gt;             &lt;dbl&gt;
+##  1           DROUGHT       13972566000
+##  2             FLOOD        5661968450
+##  3         HURRICANE        5515292800
+##  4       RIVER FLOOD        5029459000
+##  5         ICE STORM        5022113500
+##  6              HAIL        3026044473
+##  7       FLASH FLOOD        1421317100
+##  8      EXTREME COLD        1312973000
+##  9 THUNDERSTORM WIND        1224408988
+## 10      FROST/FREEZE        1094186000
+## # ... with 599 more rows</code></pre>
 </div>
 <div id="results" class="section level3">
 <h3>Results</h3>

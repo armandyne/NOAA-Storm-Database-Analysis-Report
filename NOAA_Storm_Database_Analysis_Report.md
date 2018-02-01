@@ -155,33 +155,84 @@ fatalities or injuries is one of the most difficult aspects of Storm Data prepar
 
 - *Damage*. Property damage estimates should be entered as actual dollar amounts, if a
 reasonably accurate estimate from an insurance company or other qualified individual is
-available. 
+available. Estimates should be rounded to
+three significant digits, followed by an alphabetical character signifying the magnitude of the
+number, i.e., 1.55B for $1,550,000,000. Alphabetical characters used to signify magnitude
+include “K” for thousands, “M” for millions, and “B” for billions.
 
 - *Crop Damage Data*. Crop damage information may be obtained from reliable sources,
 such as the U.S. Department of Agriculture (USDA), the county/parish agricultural extension
 agent, the state department of agriculture, crop insurance agencies, or any other reliable
 authority. 
 
+Look at possible damage multiplier values:
 
 ```r
-data <- select(data, BGN_DATE, STATE, EVTYPE, FATALITIES, INJURIES, PROPDMG, CROPDMG)
+table(data$PROPDMGEXP)
+```
+
+```
+## 
+##      -      ?      +      0      1      2      3      4      5      6 
+##      1      8      5    216     25     13      4      4     28      4 
+##      7      8      B      h      H      K      m      M 
+##      5      1     40      1      6 424665      7  11330
+```
+
+```r
+table(data$CROPDMGEXP)
+```
+
+```
+## 
+##      ?      0      2      B      k      K      m      M 
+##      7     19      1      9     21 281832      1   1994
+```
+
+Look at possible weather events:
+
+```r
+Event.types <- sort(unique(data$EVTYPE))
+length(Event.types)
+```
+
+```
+## [1] 977
+```
+
+```r
+Event.types[c(1, 45:48, 237:239, 351:354)]
+```
+
+```
+##  [1] "?"                "Coastal Flood"    "COASTAL FLOOD"   
+##  [4] "coastal flooding" "Coastal Flooding" "HAIL 0.75"       
+##  [7] "HAIL 0.88"        "HAIL 075"         "HIGH WIND"       
+## [10] "HIGH WIND (G40)"  "HIGH WIND 48"     "HIGH WIND 63"
+```
+There is a lot of messy values in the `EVTYPE` variable. We should try to clean it.
+
+First We select only necessary variables:
+
+```r
+data <- select(data, BGN_DATE, EVTYPE, FATALITIES, INJURIES, PROPDMG, CROPDMG, PROPDMGEXP, CROPDMGEXP)
 tail(data)
 ```
 
 ```
-## # A tibble: 6 x 7
-##             BGN_DATE STATE         EVTYPE FATALITIES INJURIES PROPDMG
-##                <chr> <chr>          <chr>      <dbl>    <dbl>   <dbl>
-## 1 11/28/2011 0:00:00    TN WINTER WEATHER          0        0       0
-## 2 11/30/2011 0:00:00    WY      HIGH WIND          0        0       0
-## 3 11/10/2011 0:00:00    MT      HIGH WIND          0        0       0
-## 4  11/8/2011 0:00:00    AK      HIGH WIND          0        0       0
-## 5  11/9/2011 0:00:00    AK       BLIZZARD          0        0       0
-## 6 11/28/2011 0:00:00    AL     HEAVY SNOW          0        0       0
-## # ... with 1 more variables: CROPDMG <dbl>
+## # A tibble: 6 x 8
+##             BGN_DATE         EVTYPE FATALITIES INJURIES PROPDMG CROPDMG
+##                <chr>          <chr>      <dbl>    <dbl>   <dbl>   <dbl>
+## 1 11/28/2011 0:00:00 WINTER WEATHER          0        0       0       0
+## 2 11/30/2011 0:00:00      HIGH WIND          0        0       0       0
+## 3 11/10/2011 0:00:00      HIGH WIND          0        0       0       0
+## 4  11/8/2011 0:00:00      HIGH WIND          0        0       0       0
+## 5  11/9/2011 0:00:00       BLIZZARD          0        0       0       0
+## 6 11/28/2011 0:00:00     HEAVY SNOW          0        0       0       0
+## # ... with 2 more variables: PROPDMGEXP <chr>, CROPDMGEXP <chr>
 ```
 
-Do some tidying on data:
+Convert the `PROPDMGEXP, CROPDMGEXP, EVTYPE` values to upper case, exclude some meaningless event types:
 
 ```r
 library(lubridate)
@@ -201,74 +252,212 @@ library(lubridate)
 ```r
 library(tidyr)
 
-data <- separate(data, BGN_DATE, into = c("Date", "Time"), sep = "\\W+") %>% 
-          mutate(Date = mdy(Date)) %>% 
-            select(-Time)
+data <- separate(data, BGN_DATE, into = c("Date", "Time"), sep = "\\s+") %>% 
+          mutate(Date = mdy(Date), 
+                 PROPDMGEXP = toupper(PROPDMGEXP), 
+                 CROPDMGEXP = toupper(CROPDMGEXP),
+                 EVTYPE = toupper(EVTYPE)) %>% 
+            select(-Time) %>% 
+              filter(!grepl("^SUMMARY|^\\?|NONE" , EVTYPE))
+
+head(data)
 ```
 
 ```
-## Warning: Too many values at 902297 locations: 1, 2, 3, 4, 5, 6, 7, 8, 9,
-## 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, ...
+## # A tibble: 6 x 8
+##         Date  EVTYPE FATALITIES INJURIES PROPDMG CROPDMG PROPDMGEXP
+##       <date>   <chr>      <dbl>    <dbl>   <dbl>   <dbl>      <chr>
+## 1 1950-04-18 TORNADO          0       15    25.0       0          K
+## 2 1950-04-18 TORNADO          0        0     2.5       0          K
+## 3 1951-02-20 TORNADO          0        2    25.0       0          K
+## 4 1951-06-08 TORNADO          0        2     2.5       0          K
+## 5 1951-11-15 TORNADO          0        2     2.5       0          K
+## 6 1951-11-15 TORNADO          0        6     2.5       0          K
+## # ... with 1 more variables: CROPDMGEXP <chr>
+```
+
+Clean the `EVTYPE` values:
+
+```r
+data$EVTYPE <- gsub("&", "AND", data$EVTYPE) 
+data$EVTYPE <- gsub("\\s{2,}", " ", data$EVTYPE) 
+data$EVTYPE <- gsub("\\\\", "/", data$EVTYPE) 
+data$EVTYPE <- gsub("\\s+AND\\s+", "/", data$EVTYPE) 
+data$EVTYPE <- gsub("^VOLCANIC ASH.*", "VOLCANIC ASH", data$EVTYPE) 
+data$EVTYPE <- gsub("^TSTM W[I]*ND.*|^TSTM.?$|^T[H]?U[N]?[DE].*[S]?[T]?[OR]+M.*W[IN]*.*", "THUNDERSTORM WINDS", data$EVTYPE) 
+data$EVTYPE <- gsub("^TORN[AD]?[DA]?O.*|.+TORNADO.*", "TORNADO", data$EVTYPE) 
+data$EVTYPE <- gsub("^HURRICANE.*", "HURRICANE", data$EVTYPE) 
+data$EVTYPE <- gsub("^HIGH WIND[S]?\\s*\\d+", "HIGH WIND", data$EVTYPE) 
+data$EVTYPE <- gsub("WA[Y]?TER\\s?SPOUT[S]?", "WATERSPOUTS", data$EVTYPE) 
+data$EVTYPE <- gsub("(SML)\\s?", "SMALL", data$EVTYPE)
+data$EVTYPE <- gsub("UNSEASONABLY", "UNSEASONABLE", data$EVTYPE)
+data$EVTYPE <- gsub("COOL", "COLD", data$EVTYPE)
+data$EVTYPE <- gsub("THUNDERSTORMS", "THUNDERSTORM", data$EVTYPE)
+data$EVTYPE <- gsub("W[I]?ND[S]?", "WIND", data$EVTYPE) 
+data$EVTYPE <- gsub("HAIL.{1}\\d+\\W?\\d*", "HAIL", data$EVTYPE) 
+data$EVTYPE <- gsub("\\W+$|-\\s+", "", data$EVTYPE) 
+
+length(unique(data$EVTYPE))
 ```
 
 ```
-## Warning: All formats failed to parse. No formats found.
+## [1] 609
+```
+
+Apply damage multipliers:
+
+```r
+data <- mutate(data, 
+               PROPDMG = PROPDMG * if_else(PROPDMGEXP == "K", 10 ^ 3,
+                                     if_else(PROPDMGEXP == "H", 10 ^ 2,
+                                       if_else(PROPDMGEXP == "M", 10 ^ 6, 
+                                         if_else(PROPDMGEXP == "B", 10 ^ 9, 1)
+                                         , 1), 1), 1)) %>% 
+          mutate(CROPDMG = CROPDMG * if_else(CROPDMGEXP == "K", 10 ^ 3,
+                                       if_else(CROPDMGEXP == "H", 10 ^ 2,
+                                         if_else(CROPDMGEXP == "M", 10 ^ 6, 
+                                           if_else(CROPDMGEXP == "B", 10 ^ 9, 1)
+                                           , 1), 1), 1)) %>% 
+            select(-ends_with("EXP"))
+
+data     
+```
+
+```
+## # A tibble: 902,219 x 6
+##          Date  EVTYPE FATALITIES INJURIES PROPDMG CROPDMG
+##        <date>   <chr>      <dbl>    <dbl>   <dbl>   <dbl>
+##  1 1950-04-18 TORNADO          0       15   25000       0
+##  2 1950-04-18 TORNADO          0        0    2500       0
+##  3 1951-02-20 TORNADO          0        2   25000       0
+##  4 1951-06-08 TORNADO          0        2    2500       0
+##  5 1951-11-15 TORNADO          0        2    2500       0
+##  6 1951-11-15 TORNADO          0        6    2500       0
+##  7 1951-11-16 TORNADO          0        1    2500       0
+##  8 1952-01-22 TORNADO          0        0    2500       0
+##  9 1952-02-13 TORNADO          1       14   25000       0
+## 10 1952-02-13 TORNADO          0        0   25000       0
+## # ... with 902,209 more rows
+```
+
+Set meaningful names for the variables:
+
+```r
+names(data) <- c("Date", "Event.Type", "Fatalities", "Injuries", "Property.Damage", "Crop.Damage")
+```
+
+Check for NA values:
+
+```r
+sum(is.na(data))
+```
+
+```
+## [1] 0
+```
+
+Create new dataset for public health consequences:
+
+```r
+Events.Cause.Fatalities <- select(data, Event.Type, Fatalities) %>% 
+                             group_by(Event.Type) %>% 
+                               summarise(Total.Fatalities = sum(Fatalities)) %>% 
+                                 arrange(desc(Total.Fatalities))
+Events.Cause.Fatalities
+```
+
+```
+## # A tibble: 609 x 2
+##           Event.Type Total.Fatalities
+##                <chr>            <dbl>
+##  1           TORNADO             5661
+##  2    EXCESSIVE HEAT             1903
+##  3       FLASH FLOOD              978
+##  4              HEAT              937
+##  5         LIGHTNING              817
+##  6 THUNDERSTORM WIND              710
+##  7             FLOOD              470
+##  8       RIP CURRENT              368
+##  9         HIGH WIND              283
+## 10         AVALANCHE              224
+## # ... with 599 more rows
 ```
 
 ```r
-data$STATE <- factor(data$STATE)
-data$EVTYPE <- factor(data$EVTYPE)
-data
+Events.Cause.Injuries <- select(data, Event.Type, Injuries) %>% 
+                                group_by(Event.Type) %>% 
+                                  summarise(Total.Injuries = sum(Injuries)) %>% 
+                                    arrange(desc(Total.Injuries))
+Events.Cause.Injuries
 ```
 
 ```
-## # A tibble: 902,297 x 7
-##      Date  STATE  EVTYPE FATALITIES INJURIES PROPDMG CROPDMG
-##    <date> <fctr>  <fctr>      <dbl>    <dbl>   <dbl>   <dbl>
-##  1     NA     AL TORNADO          0       15    25.0       0
-##  2     NA     AL TORNADO          0        0     2.5       0
-##  3     NA     AL TORNADO          0        2    25.0       0
-##  4     NA     AL TORNADO          0        2     2.5       0
-##  5     NA     AL TORNADO          0        2     2.5       0
-##  6     NA     AL TORNADO          0        6     2.5       0
-##  7     NA     AL TORNADO          0        1     2.5       0
-##  8     NA     AL TORNADO          0        0     2.5       0
-##  9     NA     AL TORNADO          1       14    25.0       0
-## 10     NA     AL TORNADO          0        0    25.0       0
-## # ... with 902,287 more rows
+## # A tibble: 609 x 2
+##           Event.Type Total.Injuries
+##                <chr>          <dbl>
+##  1           TORNADO          91407
+##  2 THUNDERSTORM WIND           9496
+##  3             FLOOD           6789
+##  4    EXCESSIVE HEAT           6525
+##  5         LIGHTNING           5230
+##  6              HEAT           2100
+##  7         ICE STORM           1975
+##  8       FLASH FLOOD           1777
+##  9         HIGH WIND           1440
+## 10              HAIL           1361
+## # ... with 599 more rows
+```
+
+Create new dataset for economic consequences:
+
+```r
+Events.Cause.Property.Damage <- select(data, Event.Type, Property.Damage) %>% 
+                                  group_by(Event.Type) %>% 
+                                    summarise(Total.Property.Damage = sum(Property.Damage)) %>% 
+                                      arrange(desc(Total.Property.Damage))
+Events.Cause.Property.Damage
+```
+
+```
+## # A tibble: 609 x 2
+##           Event.Type Total.Property.Damage
+##                <chr>                 <dbl>
+##  1             FLOOD          144657709807
+##  2         HURRICANE           84756180010
+##  3           TORNADO           58593098529
+##  4       STORM SURGE           43323536000
+##  5       FLASH FLOOD           16141362067
+##  6              HAIL           15732819543
+##  7 THUNDERSTORM WIND            9761990706
+##  8    TROPICAL STORM            7703890550
+##  9      WINTER STORM            6688497251
+## 10         HIGH WIND            5878433043
+## # ... with 599 more rows
 ```
 
 ```r
-names(data) <- c("Event.Date", "State", "Event.Type", "Fatalities", "Injuries", "Property.Damage", "Crop.Damage")
-
-summary(data)
+Events.Cause.Crop.Damage <- select(data, Event.Type, Crop.Damage) %>% 
+                              group_by(Event.Type) %>% 
+                                summarise(Total.Crop.Damage = sum(Crop.Damage)) %>% 
+                                  arrange(desc(Total.Crop.Damage))
+Events.Cause.Crop.Damage
 ```
 
 ```
-##    Event.Date         State                    Event.Type    
-##  Min.   :NA       TX     : 83728   HAIL             :288661  
-##  1st Qu.:NA       KS     : 53440   TSTM WIND        :219944  
-##  Median :NA       OK     : 46802   THUNDERSTORM WIND: 82563  
-##  Mean   :NA       MO     : 35648   TORNADO          : 60652  
-##  3rd Qu.:NA       IA     : 31069   FLASH FLOOD      : 54278  
-##  Max.   :NA       NE     : 30271   FLOOD            : 25326  
-##  NA's   :902297   (Other):621339   (Other)          :170873  
-##    Fatalities          Injuries         Property.Damage  
-##  Min.   :  0.0000   Min.   :   0.0000   Min.   :   0.00  
-##  1st Qu.:  0.0000   1st Qu.:   0.0000   1st Qu.:   0.00  
-##  Median :  0.0000   Median :   0.0000   Median :   0.00  
-##  Mean   :  0.0168   Mean   :   0.1557   Mean   :  12.06  
-##  3rd Qu.:  0.0000   3rd Qu.:   0.0000   3rd Qu.:   0.50  
-##  Max.   :583.0000   Max.   :1700.0000   Max.   :5000.00  
-##                                                          
-##   Crop.Damage     
-##  Min.   :  0.000  
-##  1st Qu.:  0.000  
-##  Median :  0.000  
-##  Mean   :  1.527  
-##  3rd Qu.:  0.000  
-##  Max.   :990.000  
-## 
+## # A tibble: 609 x 2
+##           Event.Type Total.Crop.Damage
+##                <chr>             <dbl>
+##  1           DROUGHT       13972566000
+##  2             FLOOD        5661968450
+##  3         HURRICANE        5515292800
+##  4       RIVER FLOOD        5029459000
+##  5         ICE STORM        5022113500
+##  6              HAIL        3026044473
+##  7       FLASH FLOOD        1421317100
+##  8      EXTREME COLD        1312973000
+##  9 THUNDERSTORM WIND        1224408988
+## 10      FROST/FREEZE        1094186000
+## # ... with 599 more rows
 ```
 
 ###Results
